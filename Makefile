@@ -1,50 +1,146 @@
-# Docker Services:
-#   up - Start services (use: make up [service...] or make up MODE=prod, ARGS="--build" for options)
-#   down - Stop services (use: make down [service...] or make down MODE=prod, ARGS="--volumes" for options)
-#   build - Build containers (use: make build [service...] or make build MODE=prod)
-#   logs - View logs (use: make logs [service] or make logs SERVICE=backend, MODE=prod for production)
-#   restart - Restart services (use: make restart [service...] or make restart MODE=prod)
-#   shell - Open shell in container (use: make shell [service] or make shell SERVICE=gateway, MODE=prod, default: backend)
-#   ps - Show running containers (use MODE=prod for production)
-#
-# Convenience Aliases (Development):
-#   dev-up - Alias: Start development environment
-#   dev-down - Alias: Stop development environment
-#   dev-build - Alias: Build development containers
-#   dev-logs - Alias: View development logs
-#   dev-restart - Alias: Restart development services
-#   dev-shell - Alias: Open shell in backend container
-#   dev-ps - Alias: Show running development containers
-#   backend-shell - Alias: Open shell in backend container
-#   gateway-shell - Alias: Open shell in gateway container
-#   mongo-shell - Open MongoDB shell
-#
-# Convenience Aliases (Production):
-#   prod-up - Alias: Start production environment
-#   prod-down - Alias: Stop production environment
-#   prod-build - Alias: Build production containers
-#   prod-logs - Alias: View production logs
-#   prod-restart - Alias: Restart production services
-#
-# Backend:
-#   backend-build - Build backend TypeScript
-#   backend-install - Install backend dependencies
-#   backend-type-check - Type check backend code
-#   backend-dev - Run backend in development mode (local, not Docker)
-#
-# Database:
-#   db-reset - Reset MongoDB database (WARNING: deletes all data)
-#   db-backup - Backup MongoDB database
-#
-# Cleanup:
-#   clean - Remove containers and networks (both dev and prod)
-#   clean-all - Remove containers, networks, volumes, and images
-#   clean-volumes - Remove all volumes
-#
-# Utilities:
-#   status - Alias for ps
-#   health - Check service health
-#
-# Help:
-#   help - Display this help message
+.PHONY: help dev prod build up down logs prune clean clean-all restart ps health
+
+.DEFAULT_GOAL := help
+
+DEV_COMPOSE := docker/compose.development.yaml
+PROD_COMPOSE := docker/compose.production.yaml
+
+help:
+	@echo "Available commands:"
+	@echo ""
+	@echo "Development:"
+	@echo "  make dev          - Start development environment"
+	@echo "  make dev-down     - Stop development environment"
+	@echo "  make dev-build    - Build development images"
+	@echo "  make dev-logs     - Follow development logs"
+	@echo ""
+	@echo "Production:"
+	@echo "  make prod         - Start production environment"
+	@echo "  make prod-down    - Stop production environment"
+	@echo "  make prod-build   - Build production images"
+	@echo "  make prod-logs    - Follow production logs"
+	@echo ""
+	@echo "General:"
+	@echo "  make build        - Build production images"
+	@echo "  make up           - Start services (production)"
+	@echo "  make down         - Stop all containers"
+	@echo "  make logs         - Follow logs for all services"
+	@echo "  make restart      - Restart all services"
+	@echo "  make ps           - Show running containers"
+	@echo "  make health       - Check service health"
+	@echo ""
+	@echo "Cleanup:"
+	@echo "  make prune        - Clean unused Docker resources"
+	@echo "  make clean        - Remove containers and networks"
+	@echo "  make clean-all    - Remove everything including volumes"
+	@echo ""
+
+dev:
+	@echo "Starting development environment..."
+	docker-compose -f $(DEV_COMPOSE) up -d
+	@echo "Development environment is running!"
+	@echo "Gateway: http://localhost:5921"
+
+dev-down:
+	@echo "Stopping development environment..."
+	docker-compose -f $(DEV_COMPOSE) down
+
+dev-build:
+	@echo "Building development images..."
+	docker-compose -f $(DEV_COMPOSE) build
+
+dev-logs:
+	docker-compose -f $(DEV_COMPOSE) logs -f
+
+dev-restart:
+	@echo "Restarting development services..."
+	docker-compose -f $(DEV_COMPOSE) restart
+
+prod:
+	@echo "Starting production environment..."
+	docker-compose -f $(PROD_COMPOSE) up -d
+	@echo "Production environment is running!"
+	@echo "Gateway: http://localhost:5921"
+
+prod-down:
+	@echo "Stopping production environment..."
+	docker-compose -f $(PROD_COMPOSE) down
+
+prod-build:
+	@echo "Building production images..."
+	docker-compose -f $(PROD_COMPOSE) build --no-cache
+
+prod-logs:
+	docker-compose -f $(PROD_COMPOSE) logs -f
+
+prod-restart:
+	@echo "Restarting production services..."
+	docker-compose -f $(PROD_COMPOSE) restart
+
+build: prod-build
+
+up: prod
+
+down:
+	@echo "Stopping all containers..."
+	docker-compose -f $(DEV_COMPOSE) down 2>/dev/null || true
+	docker-compose -f $(PROD_COMPOSE) down 2>/dev/null || true
+
+logs:
+	@echo "Following logs (production)..."
+	docker-compose -f $(PROD_COMPOSE) logs -f
+
+restart:
+	@echo "Restarting production services..."
+	docker-compose -f $(PROD_COMPOSE) restart
+
+ps:
+	@echo "Development containers:"
+	@docker-compose -f $(DEV_COMPOSE) ps 2>/dev/null || echo "  No development containers running"
+	@echo ""
+	@echo "Production containers:"
+	@docker-compose -f $(PROD_COMPOSE) ps 2>/dev/null || echo "  No production containers running"
+
+health:
+	@echo "Checking service health..."
+	@docker ps --filter "name=dev-" --filter "name=prod-" --format "table {{.Names}}\t{{.Status}}"
+
+prune:
+	@echo "Cleaning unused Docker resources..."
+	docker system prune -f
+	docker volume prune -f
+	docker network prune -f
+	@echo "Cleanup complete!"
+
+clean:
+	@echo "Removing containers and networks..."
+	docker-compose -f $(DEV_COMPOSE) down 2>/dev/null || true
+	docker-compose -f $(PROD_COMPOSE) down 2>/dev/null || true
+	@echo "Cleanup complete!"
+
+clean-all:
+	@echo "WARNING: This will remove all containers, networks, volumes, and images!"
+	@echo "Press Ctrl+C to cancel, or wait 5 seconds to continue..."
+	@sleep 5
+	docker-compose -f $(DEV_COMPOSE) down -v --rmi all 2>/dev/null || true
+	docker-compose -f $(PROD_COMPOSE) down -v --rmi all 2>/dev/null || true
+	@echo "Complete cleanup finished!"
+# Utility Commands
+# ============================================
+backend-shell: ## Open shell in backend container (dev)
+	docker-compose -f $(DEV_COMPOSE) exec backend sh
+
+gateway-shell: ## Open shell in gateway container (dev)
+	docker-compose -f $(DEV_COMPOSE) exec gateway sh
+
+mongo-shell: ## Open MongoDB shell (dev)
+	docker-compose -f $(DEV_COMPOSE) exec mongodb mongosh -u admin -p admin123
+
+db-reset: ## Reset MongoDB database (WARNING: deletes all data)
+	@echo "WARNING: This will delete all database data!"
+	@echo "Press Ctrl+C to cancel, or wait 5 seconds to continue..."
+	@sleep 5
+	docker-compose -f $(DEV_COMPOSE) down -v
+	docker volume rm dev-mongodb-data 2>/dev/null || true
+	@echo "Database reset complete!"
 

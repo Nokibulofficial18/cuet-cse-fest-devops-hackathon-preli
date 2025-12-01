@@ -1,0 +1,20 @@
+FROM node:20-alpine
+
+RUN apk add --no-cache dumb-init
+
+WORKDIR /app
+
+COPY package*.json ./
+
+RUN npm install && npm cache clean --force
+
+COPY tsconfig.json ./
+
+COPY src ./src
+
+ENV BACKEND_PORT=5000
+EXPOSE ${BACKEND_PORT}
+
+ENTRYPOINT ["dumb-init", "--"]
+
+CMD ["npm", "run", "dev"]

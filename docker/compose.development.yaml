@@ -1,6 +1,67 @@
-# services:
-  # backend:
+version: '3.8'
 
-  # gateway:
+services:
+  mongodb:
+    image: mongo:7.0
+    container_name: dev-mongodb
+    restart: unless-stopped
+    env_file:
+      - ../.env
+    environment:
+      MONGO_INITDB_ROOT_USERNAME: ${MONGO_INITDB_ROOT_USERNAME}
+      MONGO_INITDB_ROOT_PASSWORD: ${MONGO_INITDB_ROOT_PASSWORD}
+      MONGO_INITDB_DATABASE: ${MONGO_DATABASE}
+    volumes:
+      - mongodb_data:/data/db
+    networks:
+      - app-network
 
-  # mongo:
+  backend:
+    build:
+      context: ../backend
+      dockerfile: Dockerfile.dev
+    container_name: dev-backend
+    restart: unless-stopped
+    env_file:
+      - ../.env
+    environment:
+      NODE_ENV: development
+      MONGO_URI: ${MONGO_URI}
+      BACKEND_PORT: ${BACKEND_PORT}
+    volumes:
+      - ../backend:/app
+      - /app/node_modules
+    depends_on:
+      - mongodb
+    networks:
+      - app-network
+
+  gateway:
+    build:
+      context: ../gateway
+      dockerfile: Dockerfile.dev
+    container_name: dev-gateway
+    restart: unless-stopped
+    env_file:
+      - ../.env
+    environment:
+      NODE_ENV: development
+      GATEWAY_PORT: ${GATEWAY_PORT}
+      BACKEND_URL: http://backend:${BACKEND_PORT}
+    ports:
+      - "5921:5921"
+    volumes:
+      - ../gateway:/app
+      - /app/node_modules
+    depends_on:
+      - backend
+    networks:
+      - app-network
+
+networks:
+  app-network:
+    driver: bridge
+
+volumes:
+  mongodb_data:
+    name: dev-mongodb-data

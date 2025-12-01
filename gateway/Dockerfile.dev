@@ -1,0 +1,18 @@
+FROM node:20-alpine
+
+RUN apk add --no-cache dumb-init
+
+WORKDIR /app
+
+COPY package*.json ./
+
+RUN npm install && npm cache clean --force
+
+COPY src ./src
+
+ENV GATEWAY_PORT=5921
+EXPOSE ${GATEWAY_PORT}
+
+ENTRYPOINT ["dumb-init", "--"]
+
+CMD ["npm", "run", "dev"]
